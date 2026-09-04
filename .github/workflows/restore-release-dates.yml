@@ -1,0 +1,247 @@
+name: Restore module release dates
+
+on:
+  push:
+    paths:
+      - '.github/workflows/restore-release-dates.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore release dates and participant form fallback
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('index.html')
+          text = path.read_text(encoding='utf-8')
+
+          helpers = r'''  function assignmentMap() {
+    const assignments = state.participant?.assignments || [];
+    return new Map(assignments.map(item => [item.code, item]));
+  }
+
+  function lessonForTask(taskCode) {
+    return lessons.find(item => item.taskCode === taskCode) || null;
+  }
+
+  function taskReleaseAt(taskCode) {
+    const lesson = lessonForTask(taskCode);
+    if (!lesson) return '';
+    const dates = lesson.actions
+      .map(action => getControl(action.id)?.openAt || action.fallbackOpenAt || '')
+      .filter(Boolean)
+      .sort();
+    return dates[0] || '';
+  }
+
+  function taskReleaseText(taskCode) {
+    const releaseAt = taskReleaseAt(taskCode);
+    return releaseAt && !datePassed(releaseAt)
+      ? `Видео и ДЗ откроются ${formatDate(releaseAt)}`
+      : '';
+  }
+
+  function taskFormUrl(taskCode, assignment) {
+    const releaseAt = taskReleaseAt(taskCode);
+    if (releaseAt && !datePassed(releaseAt)) return '';
+
+    const direct = safeUrl(assignment?.formUrl || '');
+    if (direct) return direct;
+
+    const lesson = lessonForTask(taskCode);
+    const taskAction = lesson?.actions?.find(action => action.task);
+    if (!taskAction) return '';
+
+    const resolved = resolvedAction(taskAction);
+    return resolved.available ? resolved.url : '';
+  }
+
+  function statusPill'''
+
+          text, n = re.subn(
+              r'  function assignmentMap\(\) \{.*?\n  \}\n\n  function statusPill',
+              helpers,
+              text,
+              count=1,
+              flags=re.S,
+          )
+          if n != 1:
+              raise SystemExit('Could not replace assignment helpers')
+
+          render_task = r'''  function renderTaskButton(action, taskCode) {
+    const releaseAt = taskReleaseAt(taskCode);
+    if (releaseAt && !datePassed(releaseAt)) {
+      return '<a class="button disabled" aria-disabled="true">ДЗ</a>';
+    }
+
+    if (!state.participant) {
+      return '<a class="button" href="#progress">ДЗ</a>';
+    }
+
+    const assignment = assignmentMap().get(taskCode);
+    if (!assignment) {
+      return '<a class="button disabled" aria-disabled="true">Задание не найдено</a>';
+    }
+
+    if (assignment.status === 'accepted') {
+      return '<a class="button disabled" aria-disabled="true">ДЗ принято</a>';
+    }
+    if (assignment.status === 'review') {
+      return '<a class="button disabled" aria-disabled="true">ДЗ на проверке</a>';
+    }
+    if (assignment.status === 'locked' || assignment.status === 'notRequired') {
+      return `<a class="button disabled" aria-disabled="true">${escapeHtml((statusLabels[assignment.status] || statusLabels.locked)[0])}</a>`;
+    }
+
+    const formUrl = taskFormUrl(taskCode, assignment);
+    if (!formUrl) {
+      return '<a class="button disabled" aria-disabled="true">Форма пока недоступна</a>';
+    }
+
+    const label = assignment.status === 'rework' ? 'Отправить доработку' : (action.label || 'Сдать ДЗ');
+    return externalLink(formUrl, label, '');
+  }
+
+  function renderLessons'''
+
+          text, n = re.subn(
+              r'  function renderTaskButton\(action, taskCode\) \{.*?\n  \}\n\n  function renderLessons',
+              render_task,
+              text,
+              count=1,
+              flags=re.S,
+          )
+          if n != 1:
+              raise SystemExit('Could not replace renderTaskButton')
+
+          render_lessons = r'''  function renderLessons() {
+    const root = document.querySelector('#moduleList');
+    if (!root) return;
+    const assignments = assignmentMap();
+
+    root.innerHTML = lessons.map((lesson, index) => {
+      const actionStates = lesson.actions.map(action => ({ action, resolved: resolvedAction(action) }));
+      const materialAvailable = actionStates.some(({ action, resolved }) => !action.task && resolved.available);
+      const taskControlAvailable = actionStates.some(({ action, resolved }) => action.task && resolved.available);
+      const assignment = lesson.taskCode ? assignments.get(lesson.taskCode) : null;
+      const releaseAt = lesson.taskCode ? taskReleaseAt(lesson.taskCode) : '';
+      const futureRelease = releaseAt && !datePassed(releaseAt) ? releaseAt : '';
+      const available = !futureRelease && (materialAvailable || taskControlAvailable || Boolean(assignment && assignment.status !== 'locked'));
+      const firstFuture = actionStates
+        .map(({ resolved }) => resolved.openAt)
+        .filter(Boolean)
+        .sort()[0];
+      const unavailableText = futureRelease
+        ? `Видео и ДЗ откроются ${formatDate(futureRelease)}`
+        : (actionStates.find(({ resolved }) => resolved.unavailableText)?.resolved.unavailableText ||
+          (firstFuture ? `Откроется ${formatDate(firstFuture)}` : 'Дата открытия уточняется'));
+
+      const buttons = actionStates.map(({ action, resolved }) => {
+        if (action.task) return renderTaskButton(action, lesson.taskCode);
+        if (resolved.available) return externalLink(resolved.url, resolved.label, 'secondary');
+        if (!available) return '';
+        return `<a class="button secondary disabled" aria-disabled="true">${escapeHtml(resolved.unavailableText)}</a>`;
+      }).filter(Boolean).join('');
+
+      return `
+        <article class="card module-card ${available ? '' : 'locked'}">
+          <div>
+            <h3>${index + 1}. ${escapeHtml(lesson.title)}</h3>
+            <p class="muted">${escapeHtml(lesson.description)}</p>
+            ${assignment ? `<div class="tag-row">${statusPill(assignment.status, assignment.statusLabel)}</div>` : ''}
+            ${futureRelease ? lockedBanner(unavailableText) : (available ? '' : lockedBanner(unavailableText))}
+          </div>
+          <div class="module-actions">${buttons}</div>
+        </article>
+      `;
+    }).join('');
+  }
+
+  function meetingAction'''
+
+          text, n = re.subn(
+              r'  function renderLessons\(\) \{.*?\n  \}\n\n  function meetingAction',
+              render_lessons,
+              text,
+              count=1,
+              flags=re.S,
+          )
+          if n != 1:
+              raise SystemExit('Could not replace renderLessons')
+
+          action_for = r'''  function actionForAssignment(assignment) {
+    if (assignment.status === 'accepted') return '';
+    if (['todo', 'rework', 'extraRequired', 'extraRework'].includes(assignment.status)) {
+      const formUrl = taskFormUrl(assignment.code, assignment);
+      if (!formUrl) return '';
+      const label = ['rework', 'extraRework'].includes(assignment.status) ? 'Отправить доработку' : 'Сдать работу';
+      return `<a class="tag" href="${escapeHtml(formUrl)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+    }
+    return '';
+  }
+
+  function renderQuestionHistory'''
+
+          text, n = re.subn(
+              r'  function actionForAssignment\(assignment\) \{.*?\n  \}\n\n  function renderQuestionHistory',
+              action_for,
+              text,
+              count=1,
+              flags=re.S,
+          )
+          if n != 1:
+              raise SystemExit('Could not replace actionForAssignment')
+
+          rows_pattern = r'''    const rows = p\.assignments\.map\(assignment => `\n      <tr>\n        <td>\n          <strong>\$\{escapeHtml\(assignment\.title\)\}</strong>\n          <div class="tag-row">\$\{actionForAssignment\(assignment\)\}</div>\n        </td>\n        <td>\$\{statusPill\(assignment\.status, assignment\.statusLabel\)\}</td>\n        <td class="feedback-note">\$\{escapeHtml\(feedbackText\(assignment\)\)\}</td>\n      </tr>\n    `\)\.join\(''\);'''
+          rows_replacement = r'''    const rows = p.assignments.map(assignment => {
+      const releaseText = taskReleaseText(assignment.code);
+      return `
+      <tr>
+        <td>
+          <strong>${escapeHtml(assignment.title)}</strong>
+          ${releaseText ? `<div class="feedback-note" style="margin-top:6px;font-weight:700">${escapeHtml(releaseText)}</div>` : ''}
+          <div class="tag-row">${actionForAssignment(assignment)}</div>
+        </td>
+        <td>${statusPill(assignment.status, assignment.statusLabel)}</td>
+        <td class="feedback-note">${escapeHtml(feedbackText(assignment))}</td>
+      </tr>
+    `;
+    }).join('');'''
+          text, n = re.subn(rows_pattern, rows_replacement, text, count=1)
+          if n != 1:
+              raise SystemExit('Could not patch progress rows')
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Verify release dates
+        shell: bash
+        run: |
+          grep -Fq 'Видео и ДЗ откроются' index.html
+          grep -Fq 'function taskReleaseAt(taskCode)' index.html
+          grep -Fq 'function taskFormUrl(taskCode, assignment)' index.html
+          grep -Fq 'taskReleaseText(assignment.code)' index.html
+          grep -Fq '2026-10-09T09:00:00+03:00' index.html
+          grep -Fq '2026-10-16T09:00:00+03:00' index.html
+          grep -Fq '2026-10-23T09:00:00+03:00' index.html
+          grep -Fq '2026-11-06T09:00:00+03:00' index.html
+
+      - name: Commit and clean one-off workflows
+        shell: bash
+        run: |
+          rm -f .github/workflows/restore-release-dates.yml
+          rm -f .github/workflows/fix-personal-cabinet-form-links.yml
+          git config user.name 'chatgpt-site-fix'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Restore module release dates in public and participant views'
+          git push origin HEAD:main
