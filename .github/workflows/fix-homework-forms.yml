@@ -1,0 +1,66 @@
+name: Fix homework form links
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-homework-forms.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Patch homework form fallbacks
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+
+          replacements = {
+            "{ id: 'HW1_FORM', label: 'Сдать ДЗ', task: true }": "{ id: 'HW1_FORM', label: 'Сдать ДЗ', task: true, fallbackUrl: 'https://docs.google.com/forms/d/1ODSzxHwrxGX4fpeIeYh20gC4TJFO-NZvRpoxF_xvd_Q/viewform' }",
+            "{ id: 'HW2_FORM', label: 'Сдать ДЗ', task: true, fallbackUrl: 'https://forms.gle/G1fwYjw5HF2ob1ZN9' }": "{ id: 'HW2_FORM', label: 'Сдать ДЗ', task: true, fallbackUrl: 'https://docs.google.com/forms/d/1Dz1bhnjTm_UPPBCrJxLxEtDiTQWQ91bb3Vhy3J9o5to/viewform' }",
+            "{ id: 'HW3_FORM', label: 'Сдать ДЗ', task: true, fallbackUrl: 'https://forms.gle/Gq1ktebwiHtxMUqV7' }": "{ id: 'HW3_FORM', label: 'Сдать ДЗ', task: true, fallbackUrl: 'https://docs.google.com/forms/d/1NkALalJ3eyYGUuRGy1N-hsaUr8f3EqwlBZG8hJsLQIA/viewform' }",
+            "{ id: 'HW4_FORM', label: 'Сдать ДЗ', task: true, fallbackOpenAt: '2026-10-09T09:00:00+03:00' }": "{ id: 'HW4_FORM', label: 'Сдать ДЗ', task: true, fallbackUrl: 'https://docs.google.com/forms/d/1_YtLMIqiw3iA5a5TViecfnnlcevREfO2cjFlSrjWNdY/viewform', fallbackOpenAt: '2026-10-09T09:00:00+03:00' }",
+            "{ id: 'HW5_FORM', label: 'Сдать ДЗ', task: true, fallbackOpenAt: '2026-10-16T09:00:00+03:00' }": "{ id: 'HW5_FORM', label: 'Сдать ДЗ', task: true, fallbackUrl: 'https://docs.google.com/forms/d/1z9-mecQxVsfUlA-T-S4dMQ3oYI_HmCMbv7VW1EnyQzs/viewform', fallbackOpenAt: '2026-10-16T09:00:00+03:00' }",
+            "{ id: 'HW6_FORM', label: 'Сдать ДЗ', task: true, fallbackOpenAt: '2026-10-23T09:00:00+03:00' }": "{ id: 'HW6_FORM', label: 'Сдать ДЗ', task: true, fallbackUrl: 'https://docs.google.com/forms/d/1w0mLAE5pvUA_1NjYKR03LmndFHq2M_NRF1FYWdxwVUw/viewform', fallbackOpenAt: '2026-10-23T09:00:00+03:00' }",
+            "{ id: 'HW7_FORM', label: 'Сдать ДЗ', task: true, fallbackOpenAt: '2026-10-23T09:00:00+03:00' }": "{ id: 'HW7_FORM', label: 'Сдать ДЗ', task: true, fallbackUrl: 'https://docs.google.com/forms/d/1whR67Nq_Ud0gsmeTjGP91b58BjhRMOLv3e_W2bD5RfU/viewform', fallbackOpenAt: '2026-10-23T09:00:00+03:00' }",
+            "{ id: 'HW8_FORM', label: 'Сдать ДЗ', task: true, fallbackOpenAt: '2026-11-06T09:00:00+03:00' }": "{ id: 'HW8_FORM', label: 'Сдать ДЗ', task: true, fallbackUrl: 'https://docs.google.com/forms/d/1ZglStCS4mCqzFZwaZYkMSggPE561bTTMxx41Mzc2KuE/viewform', fallbackOpenAt: '2026-11-06T09:00:00+03:00' }",
+          }
+
+          for old, new in replacements.items():
+            if old not in s:
+              raise SystemExit(f'Expected source not found: {old[:80]}')
+            s = s.replace(old, new, 1)
+
+          old_logic = """    if (!assignment.formUrl) {\n      return '<a class=\"button disabled\" aria-disabled=\"true\">Форма пока не подключена</a>';\n    }\n\n    const label = assignment.status === 'rework' ? 'Отправить доработку' : (action.label || 'Сдать ДЗ');\n    return externalLink(assignment.formUrl, label, '');"""
+          new_logic = """    const personalFormUrl = safeUrl(assignment.formUrl || '');\n    const fallbackFormUrl = resolvedAction(action).url || safeUrl(action.fallbackUrl || '');\n    const formUrl = personalFormUrl || fallbackFormUrl;\n\n    if (!formUrl) {\n      return '<a class=\"button disabled\" aria-disabled=\"true\">Форма пока не подключена</a>';\n    }\n\n    const label = assignment.status === 'rework' ? 'Отправить доработку' : (action.label || 'Сдать ДЗ');\n    return externalLink(formUrl, label, '');"""
+
+          if old_logic not in s:
+            raise SystemExit('Expected renderTaskButton logic not found')
+          s = s.replace(old_logic, new_logic, 1)
+
+          p.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Verify
+        shell: bash
+        run: |
+          grep -Fq "1Dz1bhnjTm_UPPBCrJxLxEtDiTQWQ91bb3Vhy3J9o5to/viewform" index.html
+          grep -Fq "const formUrl = personalFormUrl || fallbackFormUrl;" index.html
+
+      - name: Commit and clean workflow
+        shell: bash
+        run: |
+          rm -f .github/workflows/fix-homework-forms.yml
+          git config user.name 'chatgpt-site-fix'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Fix homework form links and fallback behavior'
+          git push origin HEAD:main
