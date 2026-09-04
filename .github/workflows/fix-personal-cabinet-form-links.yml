@@ -1,0 +1,62 @@
+name: Fix personal cabinet form links
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-personal-cabinet-form-links.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Patch participant homework form fallback
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('index.html')
+          text = path.read_text(encoding='utf-8')
+
+          old_map = """  function assignmentMap() {\n    const assignments = state.participant?.assignments || [];\n    return new Map(assignments.map(item => [item.code, item]));\n  }\n"""
+          new_map = """  function assignmentMap() {\n    const assignments = state.participant?.assignments || [];\n    return new Map(assignments.map(item => [item.code, item]));\n  }\n\n  function taskFormUrl(taskCode, assignment) {\n    const direct = safeUrl(assignment?.formUrl || '');\n    if (direct) return direct;\n\n    const lesson = lessons.find(item => item.taskCode === taskCode);\n    const taskAction = lesson?.actions?.find(action => action.task);\n    if (!taskAction) return '';\n\n    const resolved = resolvedAction(taskAction);\n    return resolved.available ? resolved.url : '';\n  }\n"""
+          if old_map not in text:
+              raise SystemExit('assignmentMap block not found')
+          text = text.replace(old_map, new_map, 1)
+
+          old_render = """    if (!assignment.formUrl) {\n      return '<a class=\"button disabled\" aria-disabled=\"true\">Форма пока не подключена</a>';\n    }\n\n    const label = assignment.status === 'rework' ? 'Отправить доработку' : (action.label || 'Сдать ДЗ');\n    return externalLink(assignment.formUrl, label, '');\n"""
+          new_render = """    const formUrl = taskFormUrl(taskCode, assignment);\n    if (!formUrl) {\n      return '<a class=\"button disabled\" aria-disabled=\"true\">Форма пока недоступна</a>';\n    }\n\n    const label = assignment.status === 'rework' ? 'Отправить доработку' : (action.label || 'Сдать ДЗ');\n    return externalLink(formUrl, label, '');\n"""
+          if old_render not in text:
+              raise SystemExit('renderTaskButton form block not found')
+          text = text.replace(old_render, new_render, 1)
+
+          old_action = """  function actionForAssignment(assignment) {\n    if (assignment.status === 'accepted') return '';\n    if (['todo', 'rework', 'extraRequired', 'extraRework'].includes(assignment.status) && assignment.formUrl) {\n      const label = ['rework', 'extraRework'].includes(assignment.status) ? 'Отправить доработку' : 'Сдать работу';\n      return `<a class=\"tag\" href=\"${escapeHtml(assignment.formUrl)}\" target=\"_blank\" rel=\"noopener noreferrer\">${label}</a>`;\n    }\n    return '';\n  }\n"""
+          new_action = """  function actionForAssignment(assignment) {\n    if (assignment.status === 'accepted') return '';\n    if (['todo', 'rework', 'extraRequired', 'extraRework'].includes(assignment.status)) {\n      const formUrl = taskFormUrl(assignment.code, assignment);\n      if (!formUrl) return '';\n      const label = ['rework', 'extraRework'].includes(assignment.status) ? 'Отправить доработку' : 'Сдать работу';\n      return `<a class=\"tag\" href=\"${escapeHtml(formUrl)}\" target=\"_blank\" rel=\"noopener noreferrer\">${label}</a>`;\n    }\n    return '';\n  }\n"""
+          if old_action not in text:
+              raise SystemExit('actionForAssignment block not found')
+          text = text.replace(old_action, new_action, 1)
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Verify
+        shell: bash
+        run: |
+          grep -Fq 'function taskFormUrl(taskCode, assignment)' index.html
+          grep -Fq 'const formUrl = taskFormUrl(taskCode, assignment);' index.html
+          grep -Fq 'const formUrl = taskFormUrl(assignment.code, assignment);' index.html
+
+      - name: Commit patch and remove workflow
+        shell: bash
+        run: |
+          rm -f .github/workflows/fix-personal-cabinet-form-links.yml
+          git config user.name 'chatgpt-site-fix'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Keep homework form links in personal cabinet'
+          git push origin HEAD:main
