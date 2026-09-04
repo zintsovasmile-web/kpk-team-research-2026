@@ -1,0 +1,71 @@
+name: Apply one-off site hotfix
+
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-site-hotfix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-site:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Patch published index
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('index.html')
+          text = path.read_text(encoding='utf-8')
+          api = 'https://script.google.com/macros/s/AKfycbyeadlRQlIGslnPnbjG4-MHGrmfu062j9ugq5HNK-xXdDq1-5tEKI0OSChkTlg98Wz8vg/exec'
+
+          meta = f'  <meta name="course-api-url" content="{api}">'
+          if re.search(r'<meta\s+name=["\']course-api-url["\'][^>]*>', text, flags=re.I):
+              text = re.sub(r'\s*<meta\s+name=["\']course-api-url["\'][^>]*>', '\n' + meta, text, count=1, flags=re.I)
+          else:
+              needle = '  <meta name="viewport" content="width=device-width, initial-scale=1">'
+              if needle not in text:
+                  raise SystemExit('Viewport meta not found; refusing unsafe patch')
+              text = text.replace(needle, needle + '\n' + meta, 1)
+
+          replacements = {
+              "renderMiniProgress('Сайт ещё не подключён к Google-таблице: адрес Apps Script /exec не вставлен. Материалы показаны в резервном режиме.', 'error');": "renderMiniProgress('Не удалось загрузить данные курса. Попробуйте обновить страницу чуть позже.', 'error');",
+              "renderMiniProgress('Код правильный, но сайт пока не подключён к Google-таблице. Нужен опубликованный адрес Apps Script, заканчивающийся на /exec.', 'error');": "renderMiniProgress('Не удалось загрузить данные. Попробуйте обновить страницу чуть позже.', 'error');",
+              "textarea.placeholder = 'Отправка заработает после подключения Apps Script';": "textarea.placeholder = 'Отправка вопроса временно недоступна';",
+              "if (prompt) prompt.textContent = 'Поле готово, но адрес Apps Script ещё не подключён к странице.';": "if (prompt) prompt.textContent = 'Не удалось связаться с сервером курса. Попробуйте позже.';",
+              "reject(new Error('API URL не указан в HTML.'));": "reject(new Error('Не удалось связаться с сервером курса.'));",
+              "schedule: `3 октября 2026. Время уточняется. Ориентировочно: 10.00 МСК / 14.00 НСК — встреча всех участников марафона. Подключаются дети и руководители команд.\n11.00 МСК / 15.00 НСК — отдельная встреча участников курса повышения квалификации.`,": "schedule: `3 октября 2026.\n10.00 МСК / 14.00 НСК — встреча всех участников марафона. Подключаются дети и руководители команд.\n11.00 МСК / 15.00 НСК — отдельная встреча участников курса повышения квалификации.`,",
+          }
+          for old, new in replacements.items():
+              if old in text:
+                  text = text.replace(old, new)
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Verify hotfix
+        shell: bash
+        run: |
+          grep -F 'meta name="course-api-url" content="https://script.google.com/macros/s/AKfycbyeadlRQlIGslnPnbjG4-MHGrmfu062j9ugq5HNK-xXdDq1-5tEKI0OSChkTlg98Wz8vg/exec"' index.html
+          ! grep -Fq 'Нужен опубликованный адрес Apps Script' index.html
+          ! grep -Fq 'Время уточняется. Ориентировочно: 10.00 МСК' index.html
+
+      - name: Commit hotfix and remove one-off workflow
+        shell: bash
+        run: |
+          rm -f .github/workflows/apply-site-hotfix.yml
+          git config user.name 'chatgpt-site-fix'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'No changes to commit'
+            exit 0
+          fi
+          git commit -m 'Connect course backend and clean participant errors'
+          git push origin HEAD:main
