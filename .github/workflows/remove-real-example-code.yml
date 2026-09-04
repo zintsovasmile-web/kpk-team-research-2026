@@ -1,0 +1,59 @@
+name: Remove real participant code from examples
+
+on:
+  push:
+    paths:
+      - '.github/workflows/remove-real-example-code.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Replace real participant code in static examples
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('index.html')
+          text = path.read_text(encoding='utf-8')
+
+          # Never expose a real participant code in explanatory/example UI.
+          text = text.replace('582N-URMM', 'ABCD-EFGH')
+
+          # If the code field itself was prefilled in static HTML, clear it and use a fake example instead.
+          def patch_input(match):
+              tag = match.group(0)
+              tag = re.sub(r'\svalue=("[^"]*"|\'[^\']*\')', '', tag, flags=re.I)
+              if re.search(r'\splaceholder=', tag, flags=re.I):
+                  tag = re.sub(r'placeholder=("[^"]*"|\'[^\']*\')', 'placeholder="Например: ABCD-EFGH"', tag, flags=re.I)
+              else:
+                  tag = tag[:-1] + ' placeholder="Например: ABCD-EFGH">'
+              return tag
+
+          text = re.sub(r'<input\b[^>]*\bid=["\']codeInput["\'][^>]*>', patch_input, text, count=1, flags=re.I)
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Verify
+        shell: bash
+        run: |
+          ! grep -Fq '582N-URMM' index.html
+          grep -Fq 'Например: ABCD-EFGH' index.html
+
+      - name: Commit and clean workflow
+        shell: bash
+        run: |
+          rm -f .github/workflows/remove-real-example-code.yml
+          git config user.name 'chatgpt-site-fix'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Use fake code in participant examples'
+          git push origin HEAD:main
