@@ -555,6 +555,11 @@
       color: var(--muted);
     }
 
+    .time-note {
+      display: block;
+      margin-top: 4px;
+    }
+
     .meeting-actions {
       display: flex;
       flex-wrap: wrap;
@@ -825,6 +830,50 @@
       color: var(--muted);
       line-height: 1.45;
       max-width: 440px;
+    }
+
+    .support-card {
+      display: grid;
+      gap: 14px;
+      min-height: 0;
+    }
+
+    .support-card p {
+      max-width: 880px;
+      margin-bottom: 0;
+    }
+
+    .faq-head {
+      margin: 24px 0 12px;
+    }
+
+    .progress-support {
+      display: grid;
+      gap: 14px;
+      padding: 20px;
+      border-top: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .progress-support h3 {
+      margin: 0;
+      font-size: 22px;
+    }
+
+    .question-history {
+      display: grid;
+      gap: 10px;
+    }
+
+    .question-history-item {
+      border: 1px solid var(--line);
+      border-radius: var(--radius-small);
+      padding: 12px 14px;
+      background: var(--paper);
+    }
+
+    .question-history-item p {
+      margin: 6px 0 0;
     }
 
     .faq {
@@ -1154,39 +1203,18 @@
       <div class="section-head">
         <div>
           <p class="eyebrow">Поддержка</p>
-          <h2>Чтобы вопросы не терялись</h2>
+          <h2>Как сдавать задания</h2>
         </div>
       </div>
 
-      <div class="grid two">
-        <article class="card">
-          <h3>Куда сдавать ДЗ</h3>
-          <p class="muted">Все основные и назначенные дополнительные задания сдаются через персональные формы. ФИО, команда, личный код и код задания подставляются автоматически.</p>
-          <div class="module-actions">
-            <a class="button" href="#modules">Открыть ДЗ</a>
-            <a class="button secondary" href="#progress">Открыть мой прогресс</a>
-          </div>
-        </article>
+      <article class="card support-card">
+        <p class="muted">Каждое домашнее задание сдаётся из карточки соответствующего модуля по кнопке «ДЗ». Если вам назначена отработка встречи 2–5, ссылка на неё появится в разделе «Мой прогресс».</p>
+        <div class="module-actions">
+          <a class="button secondary" href="#progress">Открыть мой прогресс</a>
+        </div>
+      </article>
 
-        <article class="card">
-          <h3>Задать вопрос</h3>
-          <p class="muted" id="questionPrompt">Войдите по личному коду, и здесь можно будет сразу написать вопрос куратору.</p>
-          <form class="question-form" id="questionForm">
-            <label class="question-label" for="questionText">
-              Ваш вопрос
-              <textarea id="questionText" maxlength="1000" rows="5" placeholder="Сначала войдите по личному коду" disabled></textarea>
-            </label>
-            <div class="module-actions">
-              <button class="button secondary disabled" type="submit" id="sendQuestion" disabled>Отправить вопрос</button>
-            </div>
-            <p class="muted question-result" id="questionResult" role="status" aria-live="polite"></p>
-          </form>
-        </article>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="section-head">
+      <div class="section-head faq-head">
         <div>
           <p class="eyebrow">FAQ</p>
           <h2>Частые вопросы</h2>
@@ -1196,15 +1224,15 @@
       <div class="faq">
         <details open>
           <summary>Будет ли обратная связь по ДЗ?</summary>
-          <p>Да. Если всё хорошо, в личном прогрессе появляется отметка о принятии. Если есть комментарии, они приходят лично. На сайте это можно сделать видимым через статусы: “принято”, “на проверке”, “на доработку”.</p>
+          <p>Да. После проверки рядом с заданием появится статус «Принято» или «На доработку». Если работу нужно дополнить или исправить, там же будет комментарий проверяющего. После повторной сдачи работа снова попадёт на проверку.</p>
         </details>
         <details>
-          <summary>Что делать, если я пропустила встречу?</summary>
-          <p>Посмотреть запись и выполнить дополнительное задание к этой встрече. Для сертификата нужно: 2+ встречи с активным участием или все выполненные доп. задания.</p>
+          <summary>Что делать, если я пропустил встречу?</summary>
+          <p>Для встреч 2–5 при необходимости будет назначена отработка. Ссылка на дополнительное задание появится в разделе «Мой прогресс». После сдачи там же появятся статус проверки и комментарий. Встречи 1 и 6 отрабатывать не нужно.</p>
         </details>
         <details>
           <summary>Где смотреть, что у меня принято?</summary>
-          <p>В рабочей версии сайта участник будет вводить личный код и видеть только свои отметки.</p>
+          <p>Откройте раздел «Мой прогресс» и войдите по личному коду. Там видны статусы ДЗ, назначенные отработки, комментарии проверяющего и общий прогресс по курсу.</p>
         </details>
       </div>
     </section>
@@ -1496,6 +1524,22 @@
     return `<a class="button ${className || ''}" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`;
   }
 
+  function renderTextWithTimeNote(text, className) {
+    const source = String(text || '').trim();
+    if (!source) return '';
+    const match = source.match(/(Ориентировочное время[\s\S]*)/i);
+    if (!match) return `<p class="${className}">${escapeHtml(source)}</p>`;
+
+    const mainText = source.slice(0, match.index).trim();
+    const timeText = match[1].trim();
+    return `
+      <p class="${className}">
+        ${mainText ? `<span>${escapeHtml(mainText)}</span>` : ''}
+        <span class="time-note">${escapeHtml(timeText)}</span>
+      </p>
+    `;
+  }
+
   function renderTaskButton(action, taskCode) {
     if (!state.participant) {
       return '<a class="button" href="#progress">ДЗ</a>';
@@ -1585,8 +1629,8 @@
         <article class="event ${join.available ? '' : 'locked'}">
           <div class="meeting-copy">
             <h3>${escapeHtml(meetingTitle)}</h3>
-            ${scheduleText ? `<p class="meeting-schedule">${escapeHtml(scheduleText)}</p>` : ''}
-            ${afterText ? `<p class="meeting-description">${escapeHtml(afterText)}</p>` : ''}
+            ${renderTextWithTimeNote(scheduleText, 'meeting-schedule')}
+            ${renderTextWithTimeNote(afterText, 'meeting-description')}
           </div>
           ${joinButton}
         </article>
@@ -1617,8 +1661,8 @@
         <article class="event ${available ? '' : 'locked'}">
           <div class="meeting-copy">
             <h3>${escapeHtml(meetingTitle)}</h3>
-            ${scheduleText ? `<p class="meeting-schedule">${escapeHtml(scheduleText)}</p>` : ''}
-            ${afterText ? `<p class="meeting-description">${escapeHtml(afterText)}</p>` : ''}
+            ${renderTextWithTimeNote(scheduleText, 'meeting-schedule')}
+            ${renderTextWithTimeNote(afterText, 'meeting-description')}
           </div>
           <div class="meeting-actions">${buttons}</div>
         </article>
@@ -1663,6 +1707,30 @@
       return `<a class="tag" href="${escapeHtml(assignment.formUrl)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
     }
     return '';
+  }
+
+  function renderQuestionHistory() {
+    const questions = state.participant?.questions || state.participant?.questionHistory || [];
+    if (!Array.isArray(questions) || !questions.length) {
+      return '<p class="muted">Здесь появятся ваши отправленные вопросы и ответы куратора.</p>';
+    }
+
+    return `
+      <div class="question-history">
+        ${questions.map(item => {
+          const question = item.question || item.text || item.message || '';
+          const answer = item.answer || item.reply || item.response || '';
+          const date = item.createdAt || item.date || item.timestamp || '';
+          return `
+            <article class="question-history-item">
+              ${date ? `<strong>${escapeHtml(date)}</strong>` : '<strong>Вопрос</strong>'}
+              <p>${escapeHtml(question)}</p>
+              ${answer ? `<p class="feedback-note"><strong>Ответ:</strong> ${escapeHtml(answer)}</p>` : '<p class="feedback-note">Ответ куратора пока не добавлен.</p>'}
+            </article>
+          `;
+        }).join('')}
+      </div>
+    `;
   }
 
   function renderProgressPanel() {
@@ -1710,6 +1778,27 @@
         </thead>
         <tbody>${rows}</tbody>
       </table>
+      <div class="progress-support">
+        <div>
+          <p class="eyebrow">Вопрос куратору</p>
+          <h3>Задать вопрос</h3>
+          <p class="muted" id="questionPrompt">Вопрос будет отправлен от имени ${escapeHtml(p.name)}${p.team ? ` · ${escapeHtml(p.team)}` : ''}.</p>
+        </div>
+        <form class="question-form" id="questionForm">
+          <label class="question-label" for="questionText">
+            Ваш вопрос
+            <textarea id="questionText" maxlength="1000" rows="4" placeholder="Напишите вопрос здесь"></textarea>
+          </label>
+          <div class="module-actions">
+            <button class="button secondary" type="submit" id="sendQuestion">Отправить вопрос</button>
+          </div>
+          <p class="muted question-result" id="questionResult" role="status" aria-live="polite"></p>
+        </form>
+        <div id="questionHistory">
+          <h3>Мои вопросы и ответы</h3>
+          ${renderQuestionHistory()}
+        </div>
+      </div>
     `;
   }
 
@@ -1779,7 +1868,7 @@
 
     if (!state.participant) {
       textarea.placeholder = 'Сначала войдите по личному коду';
-      if (prompt) prompt.textContent = 'Войдите по личному коду, и здесь можно будет сразу написать вопрос куратору.';
+      if (prompt) prompt.textContent = '';
       if (result) {
         result.textContent = '';
         result.className = 'muted question-result';
@@ -1838,6 +1927,17 @@
       if (!payload?.ok) throw new Error(payload?.message || 'Не удалось отправить вопрос.');
 
       if (textarea) textarea.value = '';
+      const existingQuestions = state.participant.questions || state.participant.questionHistory || [];
+      state.participant.questions = Array.isArray(existingQuestions) ? existingQuestions : [];
+      state.participant.questions.unshift({
+        question: text,
+        answer: '',
+        createdAt: 'Отправлено сейчас'
+      });
+      const historyRoot = document.querySelector('#questionHistory');
+      if (historyRoot) {
+        historyRoot.innerHTML = `<h3>Мои вопросы и ответы</h3>${renderQuestionHistory()}`;
+      }
       if (result) {
         result.textContent = payload.message || 'Вопрос отправлен. Куратор получил уведомление.';
         result.className = 'question-result success';
@@ -1970,7 +2070,8 @@
     if (event.key === 'Enter') loadParticipant(event.currentTarget.value);
   });
 
-  document.querySelector('#questionForm')?.addEventListener('submit', event => {
+  document.addEventListener('submit', event => {
+    if (!event.target?.matches?.('#questionForm')) return;
     event.preventDefault();
     submitQuestionFromPage();
   });
