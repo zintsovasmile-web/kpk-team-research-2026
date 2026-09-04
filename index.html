@@ -1051,7 +1051,7 @@
       }
     }
   </style>
-  <meta name="course-api-url" content="">
+  <meta name="course-api-url" content="https://script.google.com/macros/s/AKfycbyeadlRQlIGslnPnbjG4-MHGrmfu062j9ugq5HNK-xXdDq1-5tEKI0OSChkTlg98Wz8vg/exec">
 </head>
 <body>
   <header class="hero">
@@ -1349,7 +1349,8 @@
     {
       number: 1,
       title: 'Первая встреча курса',
-      schedule: `3 октября 2026. Время уточняется. Ориентировочно: 10.00 МСК / 14.00 НСК — встреча всех участников марафона. Подключаются дети и руководители команд.
+      schedule: `3 октября 2026.
+10.00 МСК / 14.00 НСК — встреча всех участников марафона. Подключаются дети и руководители команд.
 11.00 МСК / 15.00 НСК — отдельная встреча участников курса повышения квалификации.`,
       description: 'После встречи здесь появятся запись вводной конференции, запись встречи с учителями и материалы, о которых говорили.'
     },
@@ -1877,8 +1878,8 @@
     }
 
     if (!API_URL) {
-      textarea.placeholder = 'Отправка заработает после подключения Apps Script';
-      if (prompt) prompt.textContent = 'Поле готово, но адрес Apps Script ещё не подключён к странице.';
+      textarea.placeholder = 'Отправка вопроса временно недоступна';
+      if (prompt) prompt.textContent = 'Не удалось связаться с сервером курса. Попробуйте позже.';
       return;
     }
 
@@ -1960,7 +1961,7 @@
   function jsonp(action, params) {
     return new Promise((resolve, reject) => {
       if (!API_URL) {
-        reject(new Error('API URL не указан в HTML.'));
+        reject(new Error('Не удалось связаться с сервером курса.'));
         return;
       }
 
@@ -1986,7 +1987,7 @@
 
   async function loadBootstrap() {
     if (!API_URL) {
-      renderMiniProgress('Сайт ещё не подключён к Google-таблице: адрес Apps Script /exec не вставлен. Материалы показаны в резервном режиме.', 'error');
+      renderMiniProgress('Не удалось загрузить данные курса. Попробуйте обновить страницу чуть позже.', 'error');
       renderLessons();
       renderSchedule();
       renderMeetings();
@@ -2020,7 +2021,7 @@
       return;
     }
     if (!API_URL) {
-      renderMiniProgress('Код правильный, но сайт пока не подключён к Google-таблице. Нужен опубликованный адрес Apps Script, заканчивающийся на /exec.', 'error');
+      renderMiniProgress('Не удалось загрузить данные. Попробуйте обновить страницу чуть позже.', 'error');
       return;
     }
     if (state.loading) return;
