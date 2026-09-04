@@ -1,0 +1,124 @@
+name: Fix release date visibility
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-release-date-visibility.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Patch date rendering
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('index.html')
+          text = path.read_text(encoding='utf-8')
+
+          old_resolved = '''    let unavailableText = control?.beforeText || '';
+
+    if (!unavailableText && openAt && !datePassed(openAt)) {
+      unavailableText = `Откроется ${formatDate(openAt)}`;
+    }
+    if (!unavailableText && !url) unavailableText = 'Ссылка ещё не добавлена';
+'''
+          new_resolved = '''    let unavailableText = '';
+
+    // Если есть будущая дата открытия, показываем её всегда.
+    // Общий текст вроде «Откроется позже» не должен затирать конкретную дату.
+    if (openAt && !datePassed(openAt)) {
+      unavailableText = `Откроется ${formatDate(openAt)}`;
+    }
+    if (!unavailableText) unavailableText = control?.beforeText || '';
+    if (!unavailableText && !url) unavailableText = 'Ссылка ещё не добавлена';
+'''
+          if old_resolved not in text:
+              raise SystemExit('resolvedAction target not found')
+          text = text.replace(old_resolved, new_resolved, 1)
+
+          old_map = '''  function assignmentMap() {
+    const assignments = state.participant?.assignments || [];
+    return new Map(assignments.map(item => [item.code, item]));
+  }
+
+  function statusPill'''
+          new_map = '''  function assignmentMap() {
+    const assignments = state.participant?.assignments || [];
+    return new Map(assignments.map(item => [item.code, item]));
+  }
+
+  function releaseTextForAssignment(assignment) {
+    const lesson = lessons.find(item => item.taskCode === assignment?.code);
+    const taskAction = lesson?.actions?.find(action => action.task);
+    if (!taskAction) return '';
+    const resolved = resolvedAction(taskAction);
+    return resolved.openAt && !datePassed(resolved.openAt)
+      ? `Откроется ${formatDate(resolved.openAt)}.`
+      : '';
+  }
+
+  function statusPill'''
+          if old_map not in text:
+              raise SystemExit('assignmentMap target not found')
+          text = text.replace(old_map, new_map, 1)
+
+          old_feedback = '''  function feedbackText(assignment) {
+    const base = feedbackDefaults[assignment.status] || assignment.statusDescription || '';
+    const comment = String(assignment.comment || '').trim();
+    return comment ? `${base} ${comment}`.trim() : base;
+  }
+'''
+          new_feedback = '''  function feedbackText(assignment) {
+    const base = feedbackDefaults[assignment.status] || assignment.statusDescription || '';
+    const comment = String(assignment.comment || '').trim();
+    const release = releaseTextForAssignment(assignment);
+    return [base, comment, release].filter(Boolean).join(' ').trim();
+  }
+'''
+          if old_feedback not in text:
+              raise SystemExit('feedbackText target not found')
+          text = text.replace(old_feedback, new_feedback, 1)
+
+          old_task_start = '''  function renderTaskButton(action, taskCode) {
+    if (!state.participant) {
+'''
+          new_task_start = '''  function renderTaskButton(action, taskCode) {
+    const taskState = resolvedAction(action);
+    if (taskState.openAt && !datePassed(taskState.openAt)) {
+      return '<a class="button disabled" aria-disabled="true">ДЗ</a>';
+    }
+
+    if (!state.participant) {
+'''
+          if old_task_start not in text:
+              raise SystemExit('renderTaskButton target not found')
+          text = text.replace(old_task_start, new_task_start, 1)
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Verify
+        shell: bash
+        run: |
+          grep -Fq 'конкретную дату' index.html
+          grep -Fq 'function releaseTextForAssignment' index.html
+          grep -Fq 'const release = releaseTextForAssignment(assignment);' index.html
+          grep -Fq 'const taskState = resolvedAction(action);' index.html
+
+      - name: Commit and clean workflow
+        shell: bash
+        run: |
+          rm -f .github/workflows/fix-release-date-visibility.yml
+          git config user.name 'chatgpt-site-fix'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Keep module release dates visible after backend load'
+          git push origin HEAD:main
