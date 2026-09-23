@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Доказательство и инварианты — 7 класс</title>
+<style>
+:root{--sea:#63d6ee;--sand:#ffe69b;--yellow:#ffd83d;--orange:#ff9f43;--pink:#ff8fbd;--purple:#8067d8;--ink:#15324a;--card:#fffef8;--line:#174c67;--green:#8ee39d}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:"Trebuchet MS","Comic Sans MS",Arial,sans-serif;color:var(--ink)}
+body{background:radial-gradient(circle at 12% 16%,rgba(255,255,255,.9) 0 7px,transparent 8px),radial-gradient(circle at 82% 22%,rgba(255,255,255,.75) 0 5px,transparent 6px),linear-gradient(#65d8ef 0%,#79e0ee 55%,#c8f4dc 82%,#ffe7a8 100%)}
+.app{min-height:100vh}.topbar{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:16px 24px;background:rgba(255,253,247,.95);border-bottom:4px solid var(--line);position:sticky;top:0;z-index:20}
+.logo{display:flex;align-items:center;gap:14px}.sponge{width:54px;height:44px;border:3px solid var(--line);border-radius:14px;background:radial-gradient(circle at 20% 25%,#fff 0 4px,transparent 5px),radial-gradient(circle at 68% 22%,#f5b92b 0 4px,transparent 5px),radial-gradient(circle at 40% 72%,#f5b92b 0 5px,transparent 6px),var(--yellow);transform:rotate(-3deg);box-shadow:4px 5px 0 rgba(21,50,74,.15)}
+h1{font-size:22px;margin:0}.sub{font-size:13px;color:#47677a}.counter{background:var(--yellow);border:3px solid var(--line);border-radius:999px;padding:8px 13px;font-weight:900}
+.deck{padding:26px 28px 110px}.slide{display:none}.slide.active{display:block}.tag{display:inline-block;background:var(--pink);border:3px solid var(--line);padding:7px 13px;border-radius:999px;font-weight:900;margin-bottom:14px;box-shadow:3px 4px 0 rgba(21,50,74,.15)}
+.card{background:var(--card);border:4px solid var(--line);border-radius:24px;padding:22px;box-shadow:7px 8px 0 rgba(21,50,74,.13)}
+.hero,.row{display:grid;grid-template-columns:1.18fr .82fr;gap:20px;align-items:start}.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}.three{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+h2{font-size:30px;margin:0 0 10px}h3{font-size:19px;margin:0 0 8px}.lead{font-size:18px;line-height:1.5}.task{background:#fff8da;border:3px solid var(--line);border-radius:20px;padding:17px 18px;font-size:18px;line-height:1.55;margin:14px 0}.q{background:#dff7ff;border:3px solid var(--line);border-radius:18px;padding:15px 17px;font-size:18px;line-height:1.45;margin-top:14px}.memory{background:#efeaff;border:3px solid var(--line);border-radius:18px;padding:15px 17px;margin-top:14px}
+.controls{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}button{border:3px solid var(--line);border-radius:14px;padding:11px 15px;font-weight:900;font-size:15px;cursor:pointer;color:var(--ink);background:var(--yellow);box-shadow:3px 4px 0 rgba(21,50,74,.18)}button.alt{background:white}button.pink{background:var(--pink)}button.orange{background:var(--orange)}button.next-block{background:var(--green);font-size:17px;padding:13px 18px}.hidden{display:none}.hidden.show{display:block}
+.pills{display:flex;flex-wrap:wrap;gap:9px;margin-top:10px}.pill{border:3px solid var(--line);border-radius:999px;padding:9px 12px;background:white;font-weight:800}
+.sort{display:grid;grid-template-columns:1.05fr .95fr .95fr;gap:14px;margin-top:14px}.bank,.zone{min-height:280px;border-radius:19px;padding:14px}.bank{background:#fff6ce;border:3px dashed var(--line)}.zone{background:white;border:3px dashed var(--line)}.zone.good{background:#efffe9}.zone.bad{background:#fff0f3}.drag{background:white;border:3px solid var(--line);border-radius:15px;padding:12px;margin-bottom:10px;cursor:grab;line-height:1.4;box-shadow:3px 4px 0 rgba(21,50,74,.1)}
+.choice{background:white;border:3px solid var(--line);border-radius:17px;padding:14px;min-height:140px}.choice p{margin:0;color:#49697c}.note{display:none;border:3px solid var(--line);border-radius:13px;padding:10px;margin-top:9px;font-size:14px}.note.show{display:block}.ok{background:#dff6db}.mid{background:#fff2bd}.bad{background:#ffe1e7}
+.ring{position:relative;width:320px;height:320px;margin:8px auto}.box{position:absolute;width:78px;height:78px;border-radius:22px;background:#fff;border:4px solid var(--line);display:flex;align-items:center;justify-content:center;flex-direction:column;font-weight:900;box-shadow:4px 5px 0 rgba(21,50,74,.12)}.box.start{background:var(--yellow)}.box small{font-size:11px;color:#527186}.weight{display:none;color:#6b50c7;font-size:14px}.stone{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:76px;height:76px;border-radius:50%;background:#513f79;color:white;border:4px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:26px}
+.broken{background:#fff3bd;border:4px solid var(--line);border-radius:20px;padding:17px;font-size:21px}.footer{position:fixed;left:0;right:0;bottom:0;z-index:30;background:rgba(255,253,247,.96);border-top:4px solid var(--line);padding:13px 20px;display:flex;justify-content:space-between;align-items:center}.dots{display:flex;gap:7px}.dot{width:12px;height:12px;border-radius:50%;border:2px solid var(--line);background:white}.dot.active{background:var(--pink)}
+@media(max-width:950px){.hero,.row,.two,.three,.sort{grid-template-columns:1fr}.deck{padding:18px 16px 120px}h2{font-size:25px}h1{font-size:19px}}
+</style>
+</head>
+<body>
+<div class="app">
+<header class="topbar"><div class="logo"><div class="sponge"></div><div><h1>Доказательство и инварианты</h1><div class="sub">7 класс · подводное математическое приключение</div></div></div><div class="counter" id="counter">1 / 6</div></header>
+<main class="deck">
+<section class="slide active">
+<div class="tag">Блок 1 · Что здесь важно?</div>
+<div class="hero">
+<div class="card">
+<h2>Знаки под водой</h2>
+<div class="task"><b>Задача.</b> Спанч Боб записал в ряд 2021 число, отличное от нуля, и перемножил все пары соседних чисел. Среди полученных произведений оказалось <b>1010 положительных</b> и <b>1010 отрицательных</b> чисел.<br><br>Патрик записал все исходные числа в том же порядке, но <b>по кругу</b>, и тоже перемножил все пары соседних чисел.<br><br><b>Сколько среди этих произведений будет положительных и сколько отрицательных?</b></div>
+<div class="q">Что можно узнать про <b>первое и последнее число</b>, даже не зная самих чисел?</div>
+<div class="controls"><button onclick="toggleBlock('s1hint')">Подсказка</button><button class="pink" onclick="toggleBlock('s1ans')">Разбор</button></div>
+<div id="s1hint" class="hidden memory">Отрицательное произведение соседних чисел означает, что между ними <b>сменился знак</b>.</div>
+<div id="s1ans" class="hidden memory">Смен знака получилось 1010 — это чётное число. Значит, первое и последнее числа имеют одинаковые знаки. Поэтому новое произведение «последнее × первое» будет положительным.<br><br><b>Ответ: 1011 положительных, 1010 отрицательных.</b></div>
+<div class="controls"><button class="next-block" onclick="nextSlide()">Следующий блок →</button></div>
+</div>
+<div class="card"><h3>Что мы сейчас сделали?</h3><div class="pills"><div class="pill">не следили за всеми числами</div><div class="pill">нашли удобную характеристику</div><div class="pill">считали смены знака</div><div class="pill">использовали чётность</div></div><div class="memory">Мы перестали следить за всеми числами и нашли <b>одну характеристику</b>, которой оказалось достаточно.</div></div>
+</div>
+</section>
+
+<section class="slide">
+<div class="tag">Блок 2 · А это уже доказательство?</div>
+<div class="card">
+<h2>Разложите реплики по двум корзинам</h2><p class="lead">Перетащите карточки.</p>
+<div class="sort">
+<div id="bank" class="bank" ondragover="event.preventDefault()" ondrop="dropCard(event)"><h3>Карточки</h3>
+<div id="c1" class="drag" draggable="true" ondragstart="dragCard(event)">«Я проверил пять примеров. Везде получилось. Значит, это всегда так».</div>
+<div id="c2" class="drag" draggable="true" ondragstart="dragCard(event)">«Я нашёл один подходящий пример. Значит, сделать так можно».</div>
+<div id="c3" class="drag" draggable="true" ondragstart="dragCard(event)">«Я перебрал все возможные случаи, и в каждом получил нужный результат».</div>
+<div id="c4" class="drag" draggable="true" ondragstart="dragCard(event)">«Я проверил, что нужная характеристика сохраняется при каждом ходе».</div></div>
+<div id="notproof" class="zone bad" ondragover="event.preventDefault()" ondrop="dropCard(event)"><h3>Пока не доказательство</h3></div>
+<div id="proof" class="zone good" ondragover="event.preventDefault()" ondrop="dropCard(event)"><h3>Уже доказательство</h3></div>
+</div>
+<div class="controls"><button onclick="checkSort()">Проверить</button><button class="alt" onclick="showCorrect()">Показать ответ</button></div>
+<div id="sortResult" class="hidden memory"></div>
+<div class="controls"><button class="next-block" onclick="nextSlide()">Следующий блок →</button></div>
+</div>
+</section>
+
+<section class="slide">
+<div class="tag">Блок 3 · Поймай характеристику</div>
+<div class="row">
+<div class="card"><h2>Задача-мостик</h2><div class="task">Сумма нескольких натуральных чисел равна <b>2022</b>. Каждое чётное число разделили на 2, а каждое нечётное умножили на 3.<br><br><b>Могла ли общая сумма после этих операций снова оказаться равной 2022?</b></div><div class="q">Какую информацию об этих числах нам было бы удобно отслеживать?</div></div>
+<div class="card"><h3>Что попробуем отслеживать?</h3><div class="two">
+<div class="choice"><h3>Общую сумму</h3><p>Удобно ли следить именно за ней?</p><div class="controls"><button class="alt" onclick="toggleNote('n1')">Проверить идею</button></div><div id="n1" class="note bad">Она как раз меняется. Сама по себе общая сумма не даёт нужной опоры.</div></div>
+<div class="choice"><h3>Чётность суммы</h3><p>Может ли это помочь?</p><div class="controls"><button class="alt" onclick="toggleNote('n2')">Проверить идею</button></div><div id="n2" class="note ok">Это полезное направление. Можно начать отдельно смотреть на вклад чётных и нечётных чисел.</div></div>
+<div class="choice"><h3>Число нечётных</h3><p>Хорошая ли это характеристика?</p><div class="controls"><button class="alt" onclick="toggleNote('n3')">Проверить идею</button></div><div id="n3" class="note mid">Само по себе этого может быть недостаточно, но идея разделить числа на чётные и нечётные полезна.</div></div>
+<div class="choice"><h3>Вклад чётных и нечётных отдельно</h3><p>А если смотреть на части?</p><div class="controls"><button class="alt" onclick="toggleNote('n4')">Проверить идею</button></div><div id="n4" class="note ok">Эта идея уже позволяет построить доказательство невозможности.</div></div>
+</div><div class="memory">Хорошая характеристика не просто удобна. Она должна <b>помогать сделать вывод</b>.</div><div class="controls"><button class="next-block" onclick="nextSlide()">Следующий блок →</button></div></div>
+</div>
+</section>
+
+<section class="slide">
+<div class="tag">Блок 4 · Главная задача</div>
+<div class="card"><h2>Камни в шести коробках</h2>
+<div class="task">По кругу стоит шесть коробок, в одной из них лежит камень. За ход можно из коробки взять один камень и положить по одному камню в соседние с ней коробки. А можно наоборот: пару камней в коробках через одну заменить одним камнем в коробке между ними.<br><br>Через некоторое количество ходов снова остался один камень. <b>Может ли этот камень лежать в коробке, соседней с исходной?</b></div>
+<div class="row">
+<div><div class="ring">
+<div class="box start" style="left:121px;top:0">1<small>старт</small><span id="w1" class="weight">вес 0</span></div>
+<div class="box" style="right:17px;top:43px">2<span id="w2" class="weight">вес 1</span></div>
+<div class="box" style="right:17px;bottom:43px">3<span id="w3" class="weight">вес 1</span></div>
+<div class="box" style="left:121px;bottom:0">4<span id="w4" class="weight">вес 0</span></div>
+<div class="box" style="left:17px;bottom:43px">5<span id="w5" class="weight">вес 1</span></div>
+<div class="box" style="left:17px;top:43px">6<span id="w6" class="weight">вес 1</span></div>
+<div class="stone">●</div></div></div>
+<div><h3>Что можно попробовать отслеживать?</h3><div class="pills"><div class="pill">общее число камней</div><div class="pill">его чётность</div><div class="pill">номер коробки</div><div class="pill">камни в выбранных коробках</div></div><div class="q">А если считать <b>не все коробки одинаково</b>?</div><div class="controls"><button onclick="showWeights()">Показать веса</button><button class="pink" onclick="toggleBlock('s4sol')">Показать идею</button></div><div id="s4sol" class="hidden memory">Присвоим коробкам по кругу веса <b>0, 1, 1, 0, 1, 1</b>.<br><br>Будем следить за <b>чётностью числа камней в коробках веса 1</b>. Эта чётность сохраняется при каждом разрешённом ходе.<br><br>У исходной коробки и соседней коробки значения этой характеристики различаются. Поэтому один камень не может перейти в соседнюю коробку.<br><br><b>Ответ: нет.</b></div></div>
+</div>
+<div class="controls"><button class="next-block" onclick="nextSlide()">Следующий блок →</button></div>
+</div>
+</section>
+
+<section class="slide">
+<div class="tag">Как работает доказательство?</div>
+<div class="card"><h2>Что делает решение полным?</h2>
+<div class="three"><div class="choice"><h3>Шаг 1</h3><p>Выбрать характеристику, за которой будем следить.</p></div><div class="choice"><h3>Шаг 2</h3><p>Проверить, что она сохраняется <b>при каждом виде хода</b>.</p></div><div class="choice"><h3>Шаг 3</h3><p>Сравнить начало и желаемую конечную ситуацию.</p></div></div>
+<div class="memory"><b>Инвариант — это не просто наблюдение.</b><br><br>Нужно доказать, что выбранная характеристика действительно сохраняется.</div>
+<div class="controls"><button class="next-block" onclick="nextSlide()">Следующий блок →</button></div>
+</div>
+</section>
+
+<section class="slide">
+<div class="tag">Финал · Найдите ошибку</div>
+<div class="card"><h2>Почему это ещё не доказательство?</h2><div class="broken">«Чётность не меняется, поэтому получить соседнюю коробку нельзя».</div><p class="lead">Найдите три пробела в рассуждении.</p>
+<div class="three">
+<div class="choice"><h3>Пробел 1</h3><div class="controls"><button class="alt" onclick="toggleBlock('h1')">Показать</button></div><div id="h1" class="hidden memory">Не сказано, <b>чётность чего</b> отслеживается.</div></div>
+<div class="choice"><h3>Пробел 2</h3><div class="controls"><button class="alt" onclick="toggleBlock('h2')">Показать</button></div><div id="h2" class="hidden memory">Не проверено, что характеристика сохраняется <b>при каждом разрешённом ходе</b>.</div></div>
+<div class="choice"><h3>Пробел 3</h3><div class="controls"><button class="alt" onclick="toggleBlock('h3')">Показать</button></div><div id="h3" class="hidden memory">Не объяснено, почему значения характеристики в начале и желаемом конце различаются.</div></div>
+</div>
+<div class="controls"><button class="orange" onclick="toggleBlock('finalRule')">Показать памятку</button></div>
+<div id="finalRule" class="hidden memory"><b>Чтобы доказать невозможность с помощью инварианта:</b><ol><li>найти характеристику;</li><li>проверить, что она сохраняется;</li><li>сравнить начало и конец.</li></ol></div>
+<div class="controls"><button class="next-block" onclick="goToSlide(0)">Начать сначала ↻</button></div>
+</div>
+</section>
+</main>
+<footer class="footer"><button class="alt" onclick="prevSlide()">← Назад</button><div class="dots" id="dots"></div><button onclick="nextSlide()">Дальше →</button></footer>
+</div>
+<script>
+const slides=[...document.querySelectorAll('.slide')];let current=0,dragged=null;
+function render(){slides.forEach((s,i)=>s.classList.toggle('active',i===current));document.getElementById('counter').textContent=(current+1)+' / '+slides.length;document.getElementById('dots').innerHTML=slides.map((_,i)=>'<span class="dot '+(i===current?'active':'')+'"></span>').join('');window.scrollTo({top:0,behavior:'smooth'})}
+function nextSlide(){current=(current+1)%slides.length;render()}function prevSlide(){current=(current-1+slides.length)%slides.length;render()}function goToSlide(i){current=i;render()}function toggleBlock(id){document.getElementById(id).classList.toggle('show')}function toggleNote(id){document.getElementById(id).classList.toggle('show')}
+function dragCard(e){dragged=e.target.id}function dropCard(e){e.preventDefault();let t=e.target;while(t&&!t.classList.contains('zone')&&!t.classList.contains('bank'))t=t.parentElement;if(t&&dragged)t.appendChild(document.getElementById(dragged))}
+function checkSort(){const p=[...document.querySelectorAll('#proof .drag')].map(x=>x.id),n=[...document.querySelectorAll('#notproof .drag')].map(x=>x.id);const ok=['c3','c4'].every(x=>p.includes(x))&&['c1','c2'].every(x=>n.includes(x));const r=document.getElementById('sortResult');r.classList.add('show');r.innerHTML=ok?'<b>Верно!</b><br><br>Один пример показывает, что так можно. Но несколько примеров не доказывают утверждение «всегда».':'Пока не всё на месте. Подумайте ещё: где только пример, а где общее рассуждение?'}
+function showCorrect(){document.getElementById('notproof').append(document.getElementById('c1'),document.getElementById('c2'));document.getElementById('proof').append(document.getElementById('c3'),document.getElementById('c4'));checkSort()}
+function showWeights(){['w1','w2','w3','w4','w5','w6'].forEach(id=>document.getElementById(id).style.display='block')}
+document.addEventListener('keydown',e=>{if(e.key==='ArrowRight')nextSlide();if(e.key==='ArrowLeft')prevSlide()});render();
+</script>
+</body>
+</html>
