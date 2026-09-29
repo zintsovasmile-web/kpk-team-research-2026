@@ -1558,11 +1558,9 @@
     const openAt = control?.openAt || action.fallbackOpenAt || '';
     const available = Boolean(url) && datePassed(openAt);
     const label = control?.buttonText || action.label;
-    let unavailableText = control?.beforeText || '';
-
-    if (!unavailableText && openAt && !datePassed(openAt)) {
-      unavailableText = `Откроется ${formatDate(openAt)}`;
-    }
+    let unavailableText = '';
+    if (openAt && !datePassed(openAt)) unavailableText = `Откроется ${formatDate(openAt)}`;
+    if (!unavailableText) unavailableText = control?.beforeText || '';
     if (!unavailableText && !url) unavailableText = 'Ссылка ещё не добавлена';
 
     return { control, url, openAt, available, label, unavailableText };
@@ -1573,6 +1571,17 @@
     return new Map(assignments.map(item => [item.code, item]));
   }
 
+  function releaseTextForAssignment(assignment) {
+    const lesson = lessons.find(item => item.taskCode === assignment.code);
+    if (!lesson) return '';
+    const dates = lesson.actions
+      .filter(action => action.task || /_VIDEO$/.test(action.id))
+      .map(action => resolvedAction(action).openAt)
+      .filter(date => date && !datePassed(date))
+      .sort();
+    return dates.length ? 'Видео и ДЗ откроются ' + formatDate(dates[0]) + '.' : '';
+  }
+
   function statusPill(status, explicitLabel) {
     const [fallbackLabel, className] = statusLabels[status] || statusLabels.todo;
     return `<span class="status ${className}">${escapeHtml(explicitLabel || fallbackLabel)}</span>`;
@@ -1581,7 +1590,8 @@
   function feedbackText(assignment) {
     const base = feedbackDefaults[assignment.status] || assignment.statusDescription || '';
     const comment = String(assignment.comment || '').trim();
-    return comment ? `${base} ${comment}`.trim() : base;
+    const release = releaseTextForAssignment(assignment);
+    return [base, comment, release].filter(Boolean).join(' ').trim();
   }
 
   function lockedBanner(text) {
@@ -1614,6 +1624,10 @@
   }
 
   function renderTaskButton(action, taskCode) {
+    const formState = resolvedAction(action);
+    if (formState.openAt && !datePassed(formState.openAt)) {
+      return '<a class="button disabled" aria-disabled="true">ДЗ</a>';
+    }
     if (!state.participant) {
       return '<a class="button" href="#progress">ДЗ</a>';
     }
@@ -1655,13 +1669,18 @@
       const materialAvailable = actionStates.some(({ action, resolved }) => !action.task && resolved.available);
       const taskControlAvailable = actionStates.some(({ action, resolved }) => action.task && resolved.available);
       const assignment = lesson.taskCode ? assignments.get(lesson.taskCode) : null;
-      const available = materialAvailable || taskControlAvailable || Boolean(assignment && assignment.status !== 'locked');
+      const futureRelease = lesson.taskCode ? actionStates
+        .filter(({ action, resolved }) => (action.task || /_VIDEO$/.test(action.id)) && resolved.openAt && !datePassed(resolved.openAt))
+        .map(({ resolved }) => resolved.openAt)
+        .sort()[0] : '';
+      const available = !futureRelease && (materialAvailable || taskControlAvailable || Boolean(assignment && assignment.status !== 'locked'));
       const firstFuture = actionStates
         .map(({ resolved }) => resolved.openAt)
         .filter(Boolean)
         .sort()[0];
-      const unavailableText = actionStates.find(({ resolved }) => resolved.unavailableText)?.resolved.unavailableText ||
-        (firstFuture ? `Откроется ${formatDate(firstFuture)}` : 'Дата открытия уточняется');
+      const unavailableText = futureRelease ? `Откроется ${formatDate(futureRelease)}` :
+        (actionStates.find(({ resolved }) => resolved.unavailableText)?.resolved.unavailableText ||
+        (firstFuture ? `Откроется ${formatDate(firstFuture)}` : 'Дата открытия уточняется'));
 
       const buttons = actionStates.map(({ action, resolved }) => {
         if (action.task) return renderTaskButton(action, lesson.taskCode);
@@ -1777,9 +1796,15 @@
 
   function actionForAssignment(assignment) {
     if (assignment.status === 'accepted') return '';
-    if (['todo', 'rework', 'extraRequired', 'extraRework'].includes(assignment.status) && assignment.formUrl) {
+    if (['todo', 'rework', 'extraRequired', 'extraRework'].includes(assignment.status)) {
+      const lesson = lessons.find(item => item.taskCode === assignment.code);
+      const taskAction = lesson?.actions.find(action => action.task);
+      const formState = taskAction ? resolvedAction(taskAction) : null;
+      if (formState && !formState.available) return '';
+      const url = safeUrl(assignment.formUrl || '') || (formState?.url || '');
+      if (!url) return '';
       const label = ['rework', 'extraRework'].includes(assignment.status) ? 'Отправить доработку' : 'Сдать работу';
-      return `<a class="tag" href="${escapeHtml(assignment.formUrl)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+      return `<a class="tag" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
     }
     return '';
   }
