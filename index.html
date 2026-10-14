@@ -1141,6 +1141,27 @@
       }
     }
 
+
+    .course-meetings { display: grid; gap: 22px; min-width: 0; }
+    .course-meetings .event { min-width: 0; height: auto; }
+    .meeting-next { padding: 30px; border: 2px solid var(--blue); background: var(--paper-soft); }
+    .meeting-next .meeting-copy h3 { font-size: clamp(24px, 4vw, 32px); }
+    .meeting-past { padding: 18px 22px; gap: 12px; }
+    .meeting-past h4 { margin: 0; font-size: 20px; }
+    .meeting-dates ul { margin: 12px 0 0; padding-left: 22px; display: grid; gap: 8px; }
+    .meeting-archive > h3 { margin-bottom: 14px; }
+    .course-meetings p, .course-meetings li, .course-meetings h3, .course-meetings h4,
+    .course-meetings .button { overflow-wrap: anywhere; word-break: normal; }
+    .course-meetings .meeting-actions .button { min-width: 0; max-width: 100%; white-space: normal; }
+    .meeting-details summary { cursor: pointer; color: var(--blue); font-weight: 750; }
+    .meeting-details[open] summary { margin-bottom: 12px; }
+    @media (max-width: 640px) {
+      .hero-text, .hero-side { min-width: 0; }
+      .hero-text h1, .hero-text .tag { overflow-wrap: anywhere; }
+      .meeting-next, .meeting-past { padding: 20px; }
+      .course-meetings .meeting-actions { flex-direction: column; }
+      .course-meetings .meeting-actions .button { width: 100%; }
+    }
   </style>
   <meta name="course-api-url" content="https://script.google.com/macros/s/AKfycbyeadlRQlIGslnPnbjG4-MHGrmfu062j9ugq5HNK-xXdDq1-5tEKI0OSChkTlg98Wz8vg/exec">
 </head>
@@ -1237,15 +1258,11 @@
   <main>
     <section class="progress-panel" id="progressPanel" aria-live="polite"></section>
 
-    <section class="section" id="schedule">
+    <section class="section" id="meetings">
       <div class="section-head">
-        <div>
-          <p class="eyebrow">Ближайшие встречи</p>
-          <h2>Куда подключаться и что будет дальше</h2>
-        </div>
+        <div><p class="eyebrow">Живые встречи</p><h2>Встречи курса</h2></div>
       </div>
-
-      <div class="timeline schedule-grid" id="scheduleList"></div>
+      <div id="meetingList" class="course-meetings" aria-live="polite"></div>
     </section>
 
     <section class="section" id="modules">
@@ -1257,17 +1274,6 @@
       </div>
 
       <div class="module-list" id="moduleList"></div>
-    </section>
-
-    <section class="section" id="meetings">
-      <div class="section-head">
-        <div>
-          <p class="eyebrow">Живые встречи</p>
-          <h2>Записи и дополнительные задания</h2>
-        </div>
-      </div>
-
-      <div class="timeline" id="meetingList"></div>
     </section>
 
     <section class="section" id="questions">
@@ -1413,47 +1419,6 @@
         { id: 'MODULE_8_VIDEO', label: 'Открыть видео', fallbackOpenAt: '2026-11-06T09:00:00+03:00' },
         { id: 'HW8_FORM', label: 'Сдать ДЗ', task: true, fallbackUrl: 'https://docs.google.com/forms/d/1ZglStCS4mCqzFZwaZYkMSggPE561bTTMxx41Mzc2KuE/viewform', fallbackOpenAt: '2026-11-06T09:00:00+03:00' }
       ]
-    }
-  ];
-
-  const meetings = [
-    {
-      number: 1,
-      title: 'Первая встреча курса',
-      schedule: `3 октября 2026 года.
-11:00 МСК / 15:00 НСК — общая встреча всех участников математического марафона: дети и руководители команд.
-12:00 МСК / 16:00 НСК — отдельная встреча преподавателей, участников курса повышения квалификации.`,
-      description: 'После встречи здесь появятся запись вводной конференции, запись встречи с учителями и материалы, о которых говорили.'
-    },
-    {
-      number: 2,
-      title: 'Вторая встреча КПК',
-      schedule: '7 октября 2026, 16:30 МСК.',
-      description: ''
-    },
-    {
-      number: 3,
-      title: 'Третья встреча КПК',
-      schedule: '21 октября 2026, 16:30 МСК.',
-      description: ''
-    },
-    {
-      number: 4,
-      title: 'Четвёртая встреча КПК',
-      schedule: '5 ноября 2026, 16:30 МСК.',
-      description: ''
-    },
-    {
-      number: 5,
-      title: 'Пятая встреча КПК',
-      schedule: '18 ноября 2026, 16:30 МСК.',
-      description: ''
-    },
-    {
-      number: 6,
-      title: 'Итоговая встреча',
-      schedule: '12 декабря 2026, время уточняется.',
-      description: 'После встречи здесь появятся запись итоговой конференции, запись встречи с учителями и материалы, о которых говорили.'
     }
   ];
 
@@ -1702,68 +1667,114 @@
     }).join('');
   }
 
-  function meetingAction(number, suffix, fallbackLabel) {
-    return resolvedAction({ id: `MEETING_${number}_${suffix}`, label: fallbackLabel });
+  // K is the meeting schedule; E is not the date of the meeting.
+  function meetingDate(schedule, courseYear) {
+    const text = String(schedule || '').toLowerCase();
+    const months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+      'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+    const russian = text.match(/(\d{1,2})\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)(?:\s+(20\d{2}))?/);
+    const iso = text.match(/(20\d{2})-(\d{2})-(\d{2})/);
+    const numeric = text.match(/(\d{1,2})[./](\d{1,2})[./](20\d{2})/);
+    let year, month, day;
+    if (russian) [year, month, day] = [Number(russian[3] || courseYear), months.indexOf(russian[2]) + 1, Number(russian[1])];
+    else if (iso) [year, month, day] = iso.slice(1).map(Number);
+    else if (numeric) [day, month, year] = numeric.slice(1).map(Number);
+    else return null;
+    const time = /время уточняется/i.test(text) ? null : text.match(/(\d{1,2})[:.](\d{2})\s*мск/i);
+    // A meeting with no confirmed time stays upcoming until the end of its Moscow day.
+    const hour = time ? Number(time[1]) : 23;
+    const minute = time ? Number(time[2]) : 59;
+    if (hour > 23 || minute > 59 || month < 1 || month > 12 || day < 1 || day > new Date(Date.UTC(year, month, 0)).getUTCDate()) return null;
+    return Date.UTC(year, month - 1, day, hour - 3, minute, time ? 0 : 59);
   }
 
-  function renderSchedule() {
-    const root = document.querySelector('#scheduleList');
-    if (!root) return;
+  function meetingLink(id, label) {
+    const row = getControl(id);
+    return { url: safeUrl(row?.url), label: label || row?.buttonText || 'Открыть материалы' };
+  }
 
-    root.innerHTML = meetings.map(meeting => {
-      const info = getControl(`MEETING_${meeting.number}_INFO`);
-      const meetingTitle = String(info?.element || meeting.title || '').trim();
-      const scheduleText = String(info?.publicText || meeting.schedule || '').trim();
-      const afterText = String(info?.afterText || meeting.description || '').trim();
-      const join = meetingAction(meeting.number, 'JOIN', 'Подключиться');
-      const joinButton = join.available
-        ? externalLink(join.url, join.label, 'secondary')
-        : '<a class="button secondary disabled" aria-disabled="true">Ссылка появится позже</a>';
-
-      return `
-        <article class="event ${join.available ? '' : 'locked'}">
-          <div class="meeting-copy">
-            <h3>${escapeHtml(meetingTitle)}</h3>
-            ${renderTextWithTimeNote(scheduleText, 'meeting-schedule')}
-            ${renderTextWithTimeNote(afterText, 'meeting-description')}
-          </div>
-          ${joinButton}
-        </article>
-      `;
-    }).join('');
+  function meetingDescription(text, actions) {
+    const known = new Set(actions.filter(action => action.url).map(action => action.url));
+    const source = String(text || '').replace(/([^\n]*?)https?:\/\/[^\s<>]+/g, (match, prefix) => {
+      const raw = match.slice(prefix.length);
+      const url = raw.replace(/[.,;!?)]+$/, '');
+      if (!known.has(url)) {
+        actions.push({ url: safeUrl(url), label: prefix.replace(/^[\s*\-–—]+|[\s*\-–—:]+$/g, '') || 'Дополнительный материал' });
+        known.add(url);
+        return '';
+      }
+      return prefix.replace(/[\s–—:-]+$/, '');
+    }).replace(/^\s*\.\s*$/gm, '').replace(/\n{3,}/g, '\n\n').trim();
+    const content = renderTextWithTimeNote(source.replace(/\*\*(.*?)\*\*/g, '$1'), 'meeting-description');
+    return source.length > 450 ? `<details class="meeting-details"><summary>Что обсуждали на встрече</summary>${content}</details>` : content;
   }
 
   function renderMeetings() {
     const root = document.querySelector('#meetingList');
     if (!root) return;
-
-    root.innerHTML = meetings.map(meeting => {
-      const info = getControl(`MEETING_${meeting.number}_INFO`);
-      const meetingTitle = String(info?.element || meeting.title || '').trim();
-      const scheduleText = String(info?.publicText || meeting.schedule || '').trim();
-      const afterText = String(info?.afterText || meeting.description || '').trim();
-      const join = meetingAction(meeting.number, 'JOIN', 'Подключиться');
-      const record = meetingAction(meeting.number, 'RECORD', 'Смотреть запись');
-      const materials = meetingAction(meeting.number, 'MATERIALS', 'Открыть материалы');
-      const controls = [join, record, materials];
-      const availableControls = controls.filter(action => action.available);
-      const available = availableControls.length > 0;
-      const buttons = available
-        ? availableControls.map(action => externalLink(action.url, action.label, action === join ? '' : 'secondary')).join('')
-        : '<a class="button secondary disabled meeting-unavailable" aria-disabled="true">Пока недоступно для просмотра</a>';
-
-      return `
-        <article class="event ${available ? '' : 'locked'}">
-          <div class="meeting-copy">
-            <h3>${escapeHtml(meetingTitle)}</h3>
-            ${renderTextWithTimeNote(scheduleText, 'meeting-schedule')}
-            ${renderTextWithTimeNote(afterText, 'meeting-description')}
-          </div>
-          <div class="meeting-actions">${buttons}</div>
-        </article>
-      `;
-    }).join('');
+    const rows = Array.from({ length: 6 }, (_, index) => {
+      const number = index + 1;
+      const info = getControl(`MEETING_${number}_INFO`);
+      return info ? { number, title: String(info.element || '').trim(), schedule: String(info.publicText || '').trim(), description: info.afterText } : null;
+    }).filter(Boolean);
+    if (!rows.length) {
+      root.innerHTML = '<p class="muted">Расписание встреч загружается из таблицы. Если оно не появилось, обновите страницу.</p>';
+      return;
+    }
+    // Derive the omitted year from dated course rows, so the schedule never rolls into a new year on its own.
+    const explicitYear = rows.map(row => row.schedule.match(/\b(20\d{2})\b/)?.[1]).find(Boolean);
+    const courseYear = explicitYear || getControl('TASKS_DEADLINE')?.openAt?.slice(0, 4) || new Date().getFullYear();
+    const now = Date.now();
+    const dated = rows.map(row => ({ ...row, date: meetingDate(row.schedule, courseYear) })).sort((a, b) => (a.date ?? Infinity) - (b.date ?? Infinity));
+    const past = dated.filter(row => row.date !== null && row.date < now);
+    const future = dated.filter(row => row.date !== null && row.date >= now);
+    const undated = dated.filter(row => row.date === null);
+    const next = future[0];
+    const upcoming = next ? (() => {
+      const join = meetingLink(`MEETING_${next.number}_JOIN`, 'Подключиться');
+      return `<article class="event meeting-next" data-meeting="${next.number}">
+        <p class="eyebrow">Ближайшая встреча</p>
+        <div class="meeting-copy"><h3>${escapeHtml(next.title)}</h3>${renderTextWithTimeNote(next.schedule, 'meeting-schedule')}</div>
+        ${join.url ? `<div class="meeting-actions">${externalLink(join.url, join.label)}</div>` : ''}
+      </article>`;
+    })() : `<p class="muted">${undated.length ? 'Дата ближайшей встречи уточняется.' : 'Все запланированные встречи курса завершены.'}</p>`;
+    const later = [...future.slice(1), ...undated];
+    const dates = later.length ? `<div class="meeting-dates"><h3>Следующие даты</h3><ul>${later.map(row => {
+      if (row.date === null) return `<li>${escapeHtml(row.schedule || 'Дата уточняется')} — ${escapeHtml(row.title)}</li>`;
+      const day = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', timeZone: 'Europe/Moscow' }).format(new Date(row.date));
+      const time = row.schedule.match(/(\d{1,2})[:.](\d{2})\s*МСК/i);
+      const uncertain = /время уточняется/i.test(row.schedule);
+      return `<li>${escapeHtml(day)}${time && !uncertain ? `, ${escapeHtml(time[1])}:${escapeHtml(time[2])} МСК` : ''} — ${escapeHtml(row.title)}${uncertain ? ', время уточняется' : ''}</li>`;
+    }).join('')}</ul></div>` : '';
+    const archive = past.length ? `<div class="meeting-archive"><h3>Прошедшие встречи</h3><div class="timeline">${past.map(row => {
+      const actions = [meetingLink(`MEETING_${row.number}_RECORD`, 'Смотреть запись'), meetingLink(`MEETING_${row.number}_MATERIALS`), meetingLink(`EX${row.number}_FORM`)];
+      const description = meetingDescription(row.description, actions);
+      const buttons = actions.filter(action => action.url).map(action => externalLink(action.url, action.label, 'secondary')).join('');
+      return `<article class="event meeting-past" data-meeting="${row.number}"><div class="meeting-copy"><h4>${escapeHtml(row.title)}</h4>${renderTextWithTimeNote(row.schedule, 'meeting-schedule')}${description}</div>${buttons ? `<div class="meeting-actions">${buttons}</div>` : ''}</article>`;
+    }).join('')}</div></div>` : '';
+    const markup = upcoming + dates + archive;
+    if (root.meetingMarkup === markup) return;
+    const expanded = Array.from(root.querySelectorAll('.meeting-past:has(details[open])'), card => card.dataset.meeting);
+    root.innerHTML = markup;
+    root.meetingMarkup = markup;
+    expanded.forEach(number => {
+      const details = root.querySelector(`[data-meeting="${number}"] details`);
+      if (details) details.open = true;
+    });
   }
+
+  // Keep time-based grouping current while the page remains open; refresh links from the same Apps Script.
+  window.setInterval(renderMeetings, 60000);
+  window.setInterval(async () => {
+    if (document.hidden || !state.bootstrapLoaded) return;
+    try {
+      const payload = await jsonp('bootstrap', {});
+      if (payload?.ok) {
+        state.control = new Map((payload.site || []).map(item => [item.id, item]));
+        renderMeetings();
+      }
+    } catch (error) { console.warn('Не удалось обновить ссылки встреч.', error); }
+  }, 300000);
 
   function renderMiniProgress(message, kind) {
     const mini = document.querySelector('#miniProgress');
@@ -1916,7 +1927,6 @@
     updateCertificateUi();
     updateTemplateLinks();
     renderLessons();
-    renderSchedule();
     renderMeetings();
     updateQuestionUi();
   }
@@ -2069,7 +2079,6 @@
     if (!API_URL) {
       renderMiniProgress('Не удалось загрузить данные курса. Попробуйте обновить страницу чуть позже.', 'error');
       renderLessons();
-      renderSchedule();
       renderMeetings();
       updateTemplateLinks();
       updateCertificateUi();
@@ -2087,7 +2096,6 @@
       console.error(error);
       renderMiniProgress('Не удалось загрузить актуальные даты и ссылки. Показан резервный вариант сайта.', 'error');
       renderLessons();
-      renderSchedule();
       renderMeetings();
     }
   }
@@ -2158,7 +2166,6 @@
   });
 
   renderLessons();
-  renderSchedule();
   renderMeetings();
   updateTemplateLinks();
   updateCertificateUi();
