@@ -1162,6 +1162,31 @@
       .course-meetings .meeting-actions { flex-direction: column; }
       .course-meetings .meeting-actions .button { width: 100%; }
     }
+
+    .progress-panel .progress-top { grid-template-columns: minmax(0, 1fr); }
+    .progress-panel .progress-top > div { min-width: 0; overflow-wrap: anywhere; }
+    /* Participant meetings: separate from homework and scoped to the cabinet. */
+    .participant-meetings { padding: 22px 20px; border-bottom: 1px solid var(--line); }
+    .participant-meetings h3, .participant-readiness h3 { margin: 0 0 8px; }
+    .participant-meeting-list { display: grid; gap: 10px; margin-top: 16px; }
+    .participant-meeting { min-width: 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius-small); background: var(--paper); overflow-wrap: anywhere; }
+    .participant-meeting h4 { margin: 0 0 10px; font-size: 16px; line-height: 1.4; }
+    .participant-meeting .meeting-statuses { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+    .participant-meeting .meeting-statuses p { margin: 0; font-size: 14px; }
+    .participant-meeting .meeting-comment, .participant-meeting .makeup-description { margin: 10px 0 0; white-space: pre-line; font-size: 14px; line-height: 1.5; }
+    .participant-meeting .meeting-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .participant-meeting .meeting-actions a { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+    .participant-meeting .status { white-space: normal; }
+    .participant-meeting .meeting-rework { background: #eee8fa; color: #65418b; }
+    .participant-meeting .meeting-neutral { background: var(--gray); color: var(--muted); }
+    .participant-readiness { padding: 22px 20px; border-bottom: 1px solid var(--line); }
+    .participant-readiness .progress-bar { max-width: 440px; }
+    .participant-readiness p { overflow-wrap: anywhere; }
+    @media (max-width: 600px) {
+      .participant-meetings, .participant-readiness { padding: 18px 14px; }
+      .participant-meeting { padding: 12px; }
+      .participant-meeting .meeting-statuses { flex-direction: column; gap: 8px; }
+    }
   </style>
   <meta name="course-api-url" content="https://script.google.com/macros/s/AKfycbyeadlRQlIGslnPnbjG4-MHGrmfu062j9ugq5HNK-xXdDq1-5tEKI0OSChkTlg98Wz8vg/exec">
 </head>
@@ -1764,7 +1789,7 @@
   }
 
   // Keep time-based grouping current while the page remains open; refresh links from the same Apps Script.
-  window.setInterval(renderMeetings, 60000);
+  window.setInterval(() => { renderMeetings(); refreshParticipantMeetings(); }, 60000);
   window.setInterval(async () => {
     if (document.hidden || !state.bootstrapLoaded) return;
     try {
@@ -1772,6 +1797,7 @@
       if (payload?.ok) {
         state.control = new Map((payload.site || []).map(item => [item.id, item]));
         renderMeetings();
+        refreshParticipantMeetings();
       }
     } catch (error) { console.warn('Не удалось обновить ссылки встреч.', error); }
   }, 300000);
@@ -1843,6 +1869,74 @@
     `;
   }
 
+  function meetingMakeupState(participation, assignment) {
+    if (String(participation || '').trim() === 'Был') return null;
+    if (!assignment) return null;
+    const status = String(assignment.status || '').trim();
+    if (['accepted', 'extraAccepted'].includes(status)) return { label: 'Зачтена', className: 'accepted', canSubmit: false };
+    if (['review', 'extraReview'].includes(status)) return { label: 'На проверке', className: 'meeting-neutral', canSubmit: false };
+    if (['rework', 'extraRework'].includes(status)) return { label: 'На доработку', className: 'meeting-rework', canSubmit: true };
+    if (['todo', 'extraRequired'].includes(status)) return { label: 'Нужно сдать', className: 'review', canSubmit: true };
+    return null;
+  }
+
+  function meetingMakeupDescription(info) {
+    const text = String(info?.afterText || '').trim();
+    const start = text.search(/(?:домашнее|дополнительное) задание для (?:тех, кто пропустил|пропустивших)/i);
+    return start < 0 ? '' : text.slice(start).replace(/\*\*(.*?)\*\*/g, '$1');
+  }
+
+  function renderParticipantMeeting(number, participation, assignment, now, courseYear) {
+    const info = getControl(`MEETING_${number}_INFO`);
+    const date = meetingDate(info?.publicText, courseYear);
+    const future = date !== null && date > now;
+    const title = info?.element || `Встреча ${number}`;
+    const topic = title.includes(':') ? title.slice(title.indexOf(':') + 1).trim() : /^(первая|вторая|третья|четвёртая|четвертая|пятая) встреча/i.test(title) ? '' : title;
+    const heading = `Встреча ${number}${topic && !topic.toLowerCase().startsWith('встреча ' + number) ? ' · ' + topic.charAt(0).toUpperCase() + topic.slice(1) : ''}`;
+    const attendance = String(participation || '').trim();
+    const makeup = number >= 2 && number <= 5 && !future ? meetingMakeupState(attendance, assignment) : null;
+    let details = '';
+    if (makeup) {
+      const comment = String(assignment.comment || '').trim();
+      const description = makeup.canSubmit ? meetingMakeupDescription(info) : '';
+      const form = resolvedAction({ id: `EX${number}_FORM`, label: 'Сдать отработку' });
+      const submission = safeUrl(assignment.answerUrl || '');
+      const actions = [
+        makeup.canSubmit && form.available ? externalLink(form.url, makeup.label === 'На доработку' ? 'Отправить доработку' : 'Сдать отработку', 'secondary') : '',
+        submission ? externalLink(submission, 'Посмотреть отправленную работу', 'secondary') : ''
+      ].filter(Boolean).join('');
+      details = `${description ? `<p class="makeup-description">${escapeHtml(description)}</p>` : ''}
+        ${comment ? `<p class="meeting-comment"><strong>Комментарий проверяющего:</strong> ${escapeHtml(comment)}</p>` : ''}
+        ${actions ? `<div class="meeting-actions">${actions}</div>` : ''}
+        ${makeup.canSubmit && !form.available ? `<p class="muted meeting-comment">${escapeHtml(form.unavailableText || 'Форма отработки пока не подключена.')}</p>` : ''}`;
+    }
+    return `<article class="participant-meeting" data-participant-meeting="${number}">
+      <h4>${escapeHtml(heading)}</h4>
+      ${future ? '<span class="status meeting-neutral">Встреча ещё не состоялась</span>' : `<div class="meeting-statuses">
+        <p>Участие: <span class="status ${attendance === 'Был' ? 'accepted' : 'meeting-neutral'}">${escapeHtml(attendance || 'Статус пока не указан')}</span></p>
+        ${makeup ? `<p>Отработка: <span class="status ${makeup.className}">${makeup.label}</span></p>` : number >= 2 && number <= 5 && attendance && attendance !== 'Был' ? '<p>Отработка: <span class="status meeting-neutral">Не назначена</span></p>' : ''}
+      </div>${details}`}
+    </article>`;
+  }
+
+  function renderParticipantMeetings() {
+    const p = state.participant;
+    if (!p) return '';
+    const records = new Map((p.meetings || []).map(item => [Number(item.meeting), item]));
+    const schedules = Array.from({ length: 6 }, (_, index) => getControl(`MEETING_${index + 1}_INFO`)?.publicText || '');
+    const year = schedules.map(text => text.match(/\b(20\d{2})\b/)?.[1]).find(Boolean) || getControl('TASKS_DEADLINE')?.openAt?.slice(0, 4) || new Date().getFullYear();
+    return Array.from({ length: 6 }, (_, index) => {
+      const number = index + 1;
+      const record = records.get(number);
+      return renderParticipantMeeting(number, record?.statusLabel, record?.rework, Date.now(), year);
+    }).join('');
+  }
+
+  function refreshParticipantMeetings() {
+    const root = document.querySelector('#participantMeetingList');
+    if (root && state.participant) root.innerHTML = renderParticipantMeetings();
+  }
+
   function renderProgressPanel() {
     const panel = document.querySelector('#progressPanel');
     if (!panel || !state.participant) return;
@@ -1851,7 +1945,7 @@
       ? '<span class="status accepted">Условия выполнены</span>'
       : '<span class="status review">Ещё не все условия выполнены</span>';
 
-    const rows = p.assignments.map(assignment => `
+    const rows = p.assignments.filter(assignment => /^HW[1-8]$/.test(assignment.code)).map(assignment => `
       <tr>
         <td>
           <strong>${escapeHtml(assignment.title)}</strong>
@@ -1869,14 +1963,9 @@
           <p class="eyebrow">Личный код ${escapeHtml(p.code)}</p>
           <h2>${escapeHtml(p.name)}</h2>
           <p class="muted">${escapeHtml(p.team || 'Команда не указана')}</p>
-          <div class="tag-row">${certificateStatus}</div>
+
         </div>
-        <div>
-          <p class="muted">Готовность к удостоверению</p>
-          <strong style="font-size:42px">${p.summary.progressPercent}%</strong>
-          <div class="progress-bar" aria-label="Готовность ${p.summary.progressPercent}%"><span style="width:${p.summary.progressPercent}%"></span></div>
-          <p class="muted" style="margin-bottom:0">Баллы: ${p.marathonPoints}/10 · ДЗ: ${p.summary.acceptedHomework}/8 · Активные встречи: ${p.summary.activeMeetings}/2</p>
-        </div>
+
       </div>
       <div class="progress-docs">
         ${document.querySelector(".hero-cert .cert-doc-row")?.outerHTML || ""}
@@ -1891,6 +1980,19 @@
         </thead>
         <tbody>${rows}</tbody>
       </table>
+      <section class="participant-meetings" aria-labelledby="participantMeetingsHeading">
+        <h3 id="participantMeetingsHeading">Встречи и отработки</h3>
+        <p class="muted">Для получения удостоверения учитывается участие во встречах или выполненные отработки.</p>
+        <div id="participantMeetingList" class="participant-meeting-list">${renderParticipantMeetings()}</div>
+      </section>
+      <section class="participant-readiness" aria-labelledby="participantReadinessHeading">
+        <h3 id="participantReadinessHeading">Готовность к удостоверению</h3>
+        <div class="tag-row">${certificateStatus}</div>
+        <strong style="font-size:42px">${p.summary.progressPercent}%</strong>
+        <div class="progress-bar" aria-label="Готовность ${p.summary.progressPercent}%"><span style="width:${p.summary.progressPercent}%"></span></div>
+        <p class="muted">Баллы: ${p.marathonPoints}/10 · ДЗ: ${p.summary.acceptedHomework}/8 · Активные встречи: ${p.summary.activeMeetings}/2 · Зачтено отработок: ${p.summary.acceptedExtras}/${p.summary.assignedExtras}</p>
+        <p class="muted">Для удостоверения нужны 10 баллов марафона, 8 принятых домашних заданий и минимум 2 посещённые встречи или все назначенные отработки, зачтённые проверяющим.</p>
+      </section>
       <div class="progress-support">
         <div>
           <p class="eyebrow">Вопрос куратору</p>
@@ -1928,6 +2030,7 @@
     updateTemplateLinks();
     renderLessons();
     renderMeetings();
+    refreshParticipantMeetings();
     updateQuestionUi();
   }
 
@@ -2176,3 +2279,4 @@
   </script>
 </body>
 </html>
+
