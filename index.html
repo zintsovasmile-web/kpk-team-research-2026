@@ -1751,8 +1751,15 @@
     const courseYear = explicitYear || getControl('TASKS_DEADLINE')?.openAt?.slice(0, 4) || new Date().getFullYear();
     const now = Date.now();
     const dated = rows.map(row => ({ ...row, date: meetingDate(row.schedule, courseYear) })).sort((a, b) => (a.date ?? Infinity) - (b.date ?? Infinity));
-    const past = dated.filter(row => row.date !== null && row.date < now);
-    const future = dated.filter(row => row.date !== null && row.date >= now);
+    const liveMeetingWindowMs = 3 * 60 * 60 * 1000;
+
+    const past = dated.filter(
+      row => row.date !== null && row.date + liveMeetingWindowMs < now
+    );
+
+    const future = dated.filter(
+      row => row.date !== null && row.date + liveMeetingWindowMs >= now
+    );
     const undated = dated.filter(row => row.date === null);
     const next = future[0];
     const upcoming = next ? (() => {
